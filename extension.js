@@ -6,13 +6,24 @@ const { spawn } = require('node:child_process');
 const vscode = require('vscode');
 
 class ControlItem extends vscode.TreeItem {
-  constructor(file_path, is_running) {
+  constructor(file_path, is_running, ini_locked) {
     const file_name = path.basename(file_path);
     super(file_name, vscode.TreeItemCollapsibleState.None);
+    const extension_name = path.extname(file_name);
+    const is_ini = extension_name === '.ini';
+
     this.file_path = file_path;
-    this.contextValue = is_running ? 'controlFileRunning' : 'controlFileStopped';
+    this.contextValue = is_running
+      ? 'controlFileRunning'
+      : (is_ini && ini_locked ? 'controlIniFileLocked' : 'controlFileStopped');
     this.description = is_running ? 'running' : path.extname(file_name).slice(1);
     this.tooltip = file_path;
+    if (is_running && is_ini) {
+      this.label = {
+        label: file_name,
+        highlights: [[0, file_name.length]]
+      };
+    }
     this.command = {
       command: 'vscode.open',
       title: 'Open File',
@@ -97,6 +108,7 @@ class ControlProvider {
     const files = entries
       .filter((entry) => entry.isFile())
       .map((entry) => entry.name)
+      .filter((name) => name !== 'imgui.ini')
       .filter((name) => name.endsWith('.ini') || name.endsWith('.toml'))
       .sort((left, right) => left.localeCompare(right))
       .map((name) => path.join(workspace_path, name));
@@ -107,9 +119,12 @@ class ControlProvider {
       ];
     }
 
+    const running_ini_path = this._process_manager.get_running_ini_path();
+
     return files.map((file_path) => new ControlItem(
       file_path,
-      this._process_manager.is_running(file_path)
+      this._process_manager.is_running(file_path),
+      Boolean(running_ini_path && running_ini_path !== file_path && path.extname(file_path) === '.ini')
     ));
   }
 }
@@ -236,6 +251,15 @@ class ProcessManager {
     return this._processes.has(file_path);
   }
 
+  get_running_ini_path() {
+    for (const file_path of this._processes.keys()) {
+      if (path.extname(file_path) === '.ini') {
+        return file_path;
+      }
+    }
+    return null;
+  }
+
   start(file_path) {
     if (this._processes.has(file_path)) {
       vscode.window.showInformationMessage(`${path.basename(file_path)} is already running.`);
@@ -249,6 +273,14 @@ class ProcessManager {
     }
 
     const extension_name = path.extname(file_path);
+    const running_ini_path = this.get_running_ini_path();
+    if (extension_name === '.ini' && running_ini_path && running_ini_path !== file_path) {
+      vscode.window.showInformationMessage(
+        `${path.basename(running_ini_path)} is already running. Stop it before starting another .ini file.`
+      );
+      return;
+    }
+
     const args = extension_name === '.ini'
       ? ['broker', '-s', file_path, '-d']
       : ['director', file_path];
