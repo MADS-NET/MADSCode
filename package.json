@@ -6,8 +6,21 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.0.2",
-  "publisher": "local",
+  "version": "0.0.4",
+  "author": {
+    "name": "Paolo Bosetti",
+    "url": "https://mads-net.github.io"
+  },
+  "keywords": [
+    "mads",
+    "visual studio code",
+    "extension",
+    "network",
+    "simulation",
+    "agent-based",
+    "data science"
+  ],
+  "publisher": "MADS-Net",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -15,6 +28,7 @@
   "categories": [
     "Other"
   ],
+  "icon": "media/mads128x128.png",
   "scripts": {
     "lint": "node --check extension.js",
     "validate": "npm run lint && node -e \"JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); console.log('package.json ok')\"",

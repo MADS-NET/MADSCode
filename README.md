@@ -12,6 +12,10 @@ Visual Studio Code extension scaffold for the MADS framework.
 - Generates `.ini` and `.toml` configuration files
 - Lists `mads --plugins` output and creates new plugins
 
+## Installing
+
+MADSCode is distributed via Open VSX, you can install it by downloading it from <https://open-vsx.org/extension/MADS-Net/madscode> and then `code --install-extension MADS-Net.madscode-<version>.vsix`
+
 ## Running locally
 
 1. Open this folder in Visual Studio Code.
