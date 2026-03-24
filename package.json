@@ -1,0 +1,166 @@
+{
+  "name": "madscode",
+  "displayName": "MADSCode",
+  "description": "Visual Studio Code support for the MADS framework.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "lint": "node --check extension.js",
+    "validate": "npm run lint && node -e \"JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); console.log('package.json ok')\"",
+    "vscode:prepublish": "npm run validate",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+  "activationEvents": [
+    "onView:mads.info",
+    "onView:mads.control",
+    "onView:mads.configurations",
+    "onView:mads.plugins",
+    "onCommand:mads.refreshFiles",
+    "onCommand:mads.refreshInfo",
+    "onCommand:mads.refreshPlugins",
+    "onCommand:mads.startFile",
+    "onCommand:mads.stopFile",
+    "onCommand:mads.generateIniFile",
+    "onCommand:mads.generateDirectorFile",
+    "onCommand:mads.createPlugin"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mads",
+          "title": "MADS",
+          "icon": "media/mads.svg"
+        }
+      ]
+    },
+    "views": {
+      "mads": [
+        {
+          "id": "mads.info",
+          "name": "MADS Info"
+        },
+        {
+          "id": "mads.control",
+          "name": "Control"
+        },
+        {
+          "id": "mads.configurations",
+          "name": "Configurations"
+        },
+        {
+          "id": "mads.plugins",
+          "name": "Plugins"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mads.refreshFiles",
+        "title": "Refresh",
+        "icon": {
+          "light": "media/refresh.svg",
+          "dark": "media/refresh.svg"
+        }
+      },
+      {
+        "command": "mads.refreshInfo",
+        "title": "Refresh",
+        "icon": {
+          "light": "media/refresh.svg",
+          "dark": "media/refresh.svg"
+        }
+      },
+      {
+        "command": "mads.refreshPlugins",
+        "title": "Refresh",
+        "icon": {
+          "light": "media/refresh.svg",
+          "dark": "media/refresh.svg"
+        }
+      },
+      {
+        "command": "mads.startFile",
+        "title": "Start",
+        "icon": {
+          "light": "media/start.svg",
+          "dark": "media/start.svg"
+        }
+      },
+      {
+        "command": "mads.stopFile",
+        "title": "Stop",
+        "icon": {
+          "light": "media/stop.svg",
+          "dark": "media/stop.svg"
+        }
+      },
+      {
+        "command": "mads.generateIniFile",
+        "title": "Generate INI File",
+        "icon": {
+          "light": "media/generate.svg",
+          "dark": "media/generate.svg"
+        }
+      },
+      {
+        "command": "mads.generateDirectorFile",
+        "title": "Generate Director File",
+        "icon": {
+          "light": "media/generate.svg",
+          "dark": "media/generate.svg"
+        }
+      },
+      {
+        "command": "mads.createPlugin",
+        "title": "Create A New One",
+        "icon": {
+          "light": "media/generate.svg",
+          "dark": "media/generate.svg"
+        }
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mads.refreshInfo",
+          "when": "view == mads.info",
+          "group": "navigation"
+        },
+        {
+          "command": "mads.refreshFiles",
+          "when": "view == mads.control",
+          "group": "navigation"
+        },
+        {
+          "command": "mads.refreshPlugins",
+          "when": "view == mads.plugins",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mads.startFile",
+          "when": "view == mads.control && viewItem == controlFileStopped",
+          "group": "inline"
+        },
+        {
+          "command": "mads.stopFile",
+          "when": "view == mads.control && viewItem == controlFileRunning",
+          "group": "inline"
+        }
+      ]
+    }
+  }
+}

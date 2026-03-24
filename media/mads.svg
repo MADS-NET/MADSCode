@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 650 650" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g id="Tavola-da-disegno1" serif:id="Tavola da disegno1" transform="matrix(-0.590909,0,0,-1.3,650,650)">
+        <rect x="0" y="0" width="1100" height="500" style="fill:none;"/>
+        <g transform="matrix(-1.692308,-0,-0,-0.769231,1477.245413,700.299801)">
+            <g transform="matrix(1.18,0,-0.36397,1,175.752588,0)">
+                <text x="233px" y="598.105px" style="font-family:'Impact', sans-serif;font-stretch:condensed;font-size:400px;fill:rgb(218,106,22);stroke:black;stroke-width:8.77px;">M</text>
+            </g>
+            <g transform="matrix(1.18,0,-0.36397,1,119.101525,0)">
+                <g transform="matrix(400,0,0,400,750.853125,598.105469)">
+                </g>
+                <text x="547.728px" y="598.105px" style="font-family:'Impact', sans-serif;font-stretch:condensed;font-size:400px;fill:rgb(62,131,214);stroke:black;stroke-width:8.77px;">A</text>
+            </g>
+        </g>
+        <g transform="matrix(-1.692308,-0,-0,-0.769231,1461.458762,476.623275)">
+            <g transform="matrix(1.18,0,-0.36397,1,175.752588,0)">
+                <text x="233px" y="598.105px" style="font-family:'Impact', sans-serif;font-stretch:condensed;font-size:400px;fill:rgb(22,133,218);stroke:black;stroke-width:8.77px;">D</text>
+            </g>
+            <g transform="matrix(1.18,0,-0.36397,1,133.040275,0)">
+                <g transform="matrix(400,0,0,400,677.126562,598.105469)">
+                </g>
+                <text x="470.291px" y="598.105px" style="font-family:'Impact', sans-serif;font-stretch:condensed;font-size:400px;fill:rgb(218,106,22);stroke:black;stroke-width:8.77px;">S</text>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -1,0 +1,5 @@
+node_modules/
+*.vsix
+imgui.ini
+package-lock.json
+.vscode
