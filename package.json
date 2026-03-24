@@ -1,6 +1,10 @@
 {
   "name": "madscode",
   "displayName": "MADSCode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MADS-NET/MADSCode.git"
+  },
   "description": "Visual Studio Code support for the MADS framework.",
   "version": "0.0.1",
   "publisher": "local",
