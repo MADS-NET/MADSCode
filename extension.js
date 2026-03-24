@@ -144,17 +144,10 @@ class MadsInfoProvider {
   }
 
   async getChildren() {
-    const workspace_path = get_workspace_path();
-    if (!workspace_path) {
-      return [
-        new vscode.TreeItem('Open a workspace to query MADS information.')
-      ];
-    }
-
     try {
       const [version, prefix] = await Promise.all([
-        capture_mads_output(['-v']),
-        capture_mads_output(['-p'])
+        capture_mads_output(['-v'], { require_workspace: false }),
+        capture_mads_output(['-p'], { require_workspace: false })
       ]);
 
       return [
@@ -162,6 +155,13 @@ class MadsInfoProvider {
         new InfoItem('Prefix', prefix || 'Unavailable')
       ];
     } catch (error) {
+      if (error.code === 'ENOENT') {
+        return [
+          new InfoItem('Version', 'MADS is not installed'),
+          new InfoItem('Prefix', 'Install the MADS framework from https://git.new/mads')
+        ];
+      }
+
       return [
         new vscode.TreeItem(`Failed to query MADS: ${error.message}`)
       ];
@@ -356,9 +356,9 @@ function get_workspace_path() {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
-function capture_mads_output(args) {
+function capture_mads_output(args, options = {}) {
   const workspace_path = get_workspace_path();
-  if (!workspace_path) {
+  if (options.require_workspace !== false && !workspace_path) {
     return Promise.reject(new Error('Open a workspace before running MADS commands.'));
   }
 
