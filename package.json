@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
@@ -87,66 +87,52 @@
       {
         "command": "mads.refreshFiles",
         "title": "Refresh",
-        "icon": {
-          "light": "media/refresh.svg",
-          "dark": "media/refresh.svg"
-        }
+        "icon": "$(refresh)"
       },
       {
         "command": "mads.refreshInfo",
         "title": "Refresh",
-        "icon": {
-          "light": "media/refresh.svg",
-          "dark": "media/refresh.svg"
-        }
+        "icon": "$(refresh)"
       },
       {
         "command": "mads.refreshPlugins",
         "title": "Refresh",
-        "icon": {
-          "light": "media/refresh.svg",
-          "dark": "media/refresh.svg"
-        }
+        "icon": "$(refresh)"
       },
       {
         "command": "mads.startFile",
         "title": "Start",
-        "icon": {
-          "light": "media/start.svg",
-          "dark": "media/start.svg"
-        }
+        "icon": "$(play-circle)"
       },
       {
         "command": "mads.stopFile",
         "title": "Stop",
-        "icon": {
-          "light": "media/stop.svg",
-          "dark": "media/stop.svg"
-        }
+        "icon": "$(stop-circle)"
       },
       {
         "command": "mads.generateIniFile",
         "title": "Generate INI File",
-        "icon": {
-          "light": "media/generate.svg",
-          "dark": "media/generate.svg"
-        }
+        "icon": "$(build)"
       },
       {
         "command": "mads.generateDirectorFile",
         "title": "Generate Director File",
-        "icon": {
-          "light": "media/generate.svg",
-          "dark": "media/generate.svg"
-        }
+        "icon": "$(build)"
       },
       {
         "command": "mads.createPlugin",
         "title": "Create A New One",
-        "icon": {
-          "light": "media/generate.svg",
-          "dark": "media/generate.svg"
-        }
+        "icon": "$(build)"
+      },
+      {
+        "command": "mads.openTreeLink",
+        "title": "Open Link",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "mads.revealTreePath",
+        "title": "Open Folder",
+        "icon": "$(folder-opened)"
       }
     ],
     "menus": {
@@ -176,6 +162,31 @@
         {
           "command": "mads.stopFile",
           "when": "view == mads.control && viewItem == controlFileRunning",
+          "group": "inline"
+        },
+        {
+          "command": "mads.generateIniFile",
+          "when": "view == mads.configurations && viewItem == configurationGenerateIni",
+          "group": "inline"
+        },
+        {
+          "command": "mads.generateDirectorFile",
+          "when": "view == mads.configurations && viewItem == configurationGenerateDirector",
+          "group": "inline"
+        },
+        {
+          "command": "mads.createPlugin",
+          "when": "view == mads.plugins && viewItem == pluginCreate",
+          "group": "inline"
+        },
+        {
+          "command": "mads.openTreeLink",
+          "when": "view =~ /^mads\\./ && viewItem == externalLink",
+          "group": "inline"
+        },
+        {
+          "command": "mads.revealTreePath",
+          "when": "view =~ /^mads\\./ && viewItem == openableFolder",
           "group": "inline"
         }
       ]

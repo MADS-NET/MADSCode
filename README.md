@@ -2,6 +2,12 @@
 
 Visual Studio Code extension scaffold for the MADS framework.
 
+## What is MADS
+
+MADS is a [Multi-Agent Distributed System](https://mads-net.github.io/presentations/intro.html): a multi-platform framework of tools and libraries to coordinate a bunch of agents that exchange information through ZeroMQ protocol. MADS is **plugin-base**, and also has a Python interface.
+
+This extension helps in the development of MADS plugins. Look at the [Guides](https://mads-net.github.io/guides) for HOW-TOs.
+
 ## Features
 
 - Activity bar entry with `MADS Info`, `Control`, `Configurations`, and `Plugins` side views

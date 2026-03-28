@@ -6,9 +6,10 @@ const { spawn } = require('node:child_process');
 const vscode = require('vscode');
 
 class ControlItem extends vscode.TreeItem {
-  constructor(file_path, is_running, ini_locked) {
+  constructor(file_path, is_running, ini_locked, display_name) {
     const file_name = path.basename(file_path);
-    super(file_name, vscode.TreeItemCollapsibleState.None);
+    const item_label = display_name || file_name;
+    super(item_label, vscode.TreeItemCollapsibleState.None);
     const extension_name = path.extname(file_name);
     const is_ini = extension_name === '.ini';
 
@@ -20,8 +21,8 @@ class ControlItem extends vscode.TreeItem {
     this.tooltip = file_path;
     if (is_running && is_ini) {
       this.label = {
-        label: file_name,
-        highlights: [[0, file_name.length]]
+        label: item_label,
+        highlights: [[0, item_label.length]]
       };
     }
     this.command = {
@@ -33,8 +34,9 @@ class ControlItem extends vscode.TreeItem {
 }
 
 class ActionItem extends vscode.TreeItem {
-  constructor(label, command_name) {
+  constructor(label, command_name, context_value) {
     super(label, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = context_value;
     this.command = {
       command: command_name,
       title: label
@@ -43,10 +45,14 @@ class ActionItem extends vscode.TreeItem {
 }
 
 class InfoItem extends vscode.TreeItem {
-  constructor(label, value) {
+  constructor(label, value, command, context_value) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.description = value;
     this.tooltip = `${label}: ${value}`;
+    this.contextValue = context_value;
+    if (command) {
+      this.command = command;
+    }
   }
 }
 
@@ -67,9 +73,13 @@ class PluginsGroupItem extends vscode.TreeItem {
 }
 
 class PluginsDirectoryItem extends vscode.TreeItem {
-  constructor(label) {
+  constructor(label, command, context_value) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.tooltip = label;
+    this.contextValue = context_value;
+    if (command) {
+      this.command = command;
+    }
   }
 }
 
@@ -111,7 +121,18 @@ class ControlProvider {
       .filter((name) => name !== 'imgui.ini')
       .filter((name) => name.endsWith('.ini') || name.endsWith('.toml'))
       .sort((left, right) => left.localeCompare(right))
-      .map((name) => path.join(workspace_path, name));
+      .map((name) => ({
+        file_path: path.join(workspace_path, name),
+        display_name: null
+      }));
+
+    const system_ini_path = await get_system_ini_path();
+    if (system_ini_path) {
+      files.unshift({
+        file_path: system_ini_path,
+        display_name: 'System mads.ini'
+      });
+    }
 
     if (files.length === 0) {
       return [
@@ -121,10 +142,11 @@ class ControlProvider {
 
     const running_ini_path = this._process_manager.get_running_ini_path();
 
-    return files.map((file_path) => new ControlItem(
+    return files.map(({ file_path, display_name }) => new ControlItem(
       file_path,
       this._process_manager.is_running(file_path),
-      Boolean(running_ini_path && running_ini_path !== file_path && path.extname(file_path) === '.ini')
+      Boolean(running_ini_path && running_ini_path !== file_path && path.extname(file_path) === '.ini'),
+      display_name
     ));
   }
 }
@@ -152,13 +174,17 @@ class MadsInfoProvider {
 
       return [
         new InfoItem('Version', version || 'Unavailable'),
-        new InfoItem('Prefix', prefix || 'Unavailable')
+        await create_prefix_info_item(prefix),
+        create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
+        create_external_link_info_item('Install', 'https://git.new/mads')
       ];
     } catch (error) {
       if (error.code === 'ENOENT') {
         return [
           new InfoItem('Version', 'MADS is not installed'),
-          new InfoItem('Prefix', 'Install the MADS framework from https://git.new/mads')
+          new InfoItem('Prefix', 'Install the MADS framework from https://git.new/mads'),
+          create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
+          create_external_link_info_item('Install', 'https://git.new/mads')
         ];
       }
 
@@ -176,8 +202,8 @@ class ConfigurationsProvider {
 
   getChildren() {
     return [
-      new ActionItem('Generate INI file', 'mads.generateIniFile'),
-      new ActionItem('Generate director file', 'mads.generateDirectorFile')
+      new ActionItem('Generate INI file', 'mads.generateIniFile', 'configurationGenerateIni'),
+      new ActionItem('Generate director file', 'mads.generateDirectorFile', 'configurationGenerateDirector')
     ];
   }
 }
@@ -208,7 +234,7 @@ class PluginsProvider {
       ];
     }
 
-    const items = [new ActionItem('Create a new one', 'mads.createPlugin')];
+    const items = [new ActionItem('Create a new one', 'mads.createPlugin', 'pluginCreate')];
 
     try {
       const output = await capture_mads_output(['--plugins']);
@@ -218,7 +244,7 @@ class PluginsProvider {
 
       const directory_line = lines[0]?.trim();
       if (directory_line) {
-        items.push(new PluginsDirectoryItem(directory_line));
+        items.push(await create_plugins_directory_item(directory_line));
       }
 
       const plugins = lines
@@ -393,6 +419,79 @@ function capture_mads_output(args, options = {}) {
       reject(new Error(stderr.trim() || `mads exited with code ${code ?? 0}.`));
     });
   });
+}
+
+async function create_prefix_info_item(prefix) {
+  if (!prefix) {
+    return new InfoItem('Prefix', 'Unavailable');
+  }
+
+  try {
+    await fs.promises.access(prefix, fs.constants.F_OK);
+    const item = new InfoItem('Prefix', prefix, create_reveal_path_command(prefix, 'Reveal Prefix'), 'openableFolder');
+    item.reveal_path = prefix;
+    return item;
+  } catch {
+    return new InfoItem('Prefix', prefix);
+  }
+}
+
+async function get_system_ini_path() {
+  try {
+    const prefix = await capture_mads_output(['-p'], { require_workspace: false });
+    if (!prefix) {
+      return null;
+    }
+
+    const system_ini_path = path.join(prefix, 'etc', 'mads.ini');
+    await fs.promises.access(system_ini_path, fs.constants.F_OK);
+    return system_ini_path;
+  } catch {
+    return null;
+  }
+}
+
+function create_external_link_info_item(label, url) {
+  const item = new InfoItem(label, url, create_open_url_command(url, label), 'externalLink');
+  item.link_url = url;
+  return item;
+}
+
+async function create_plugins_directory_item(line) {
+  const match = line.match(/^Plugins directory:\s*(.+)$/i);
+  const directory_path = match ? match[1].trim() : line;
+  if (!directory_path) {
+    return new PluginsDirectoryItem(line);
+  }
+
+  try {
+    await fs.promises.access(directory_path, fs.constants.F_OK);
+    const item = new PluginsDirectoryItem(
+      line,
+      create_reveal_path_command(directory_path, 'Reveal Plugins Directory'),
+      'openableFolder'
+    );
+    item.reveal_path = directory_path;
+    return item;
+  } catch {
+    return new PluginsDirectoryItem(line);
+  }
+}
+
+function create_open_url_command(url, title) {
+  return {
+    command: 'vscode.open',
+    title,
+    arguments: [vscode.Uri.parse(url)]
+  };
+}
+
+function create_reveal_path_command(file_path, title) {
+  return {
+    command: 'revealFileInOS',
+    title,
+    arguments: [vscode.Uri.file(file_path)]
+  };
 }
 
 function parse_plugin_line(line) {
@@ -684,6 +783,18 @@ function activate(context) {
           refresh_all();
         }
       );
+    }),
+    vscode.commands.registerCommand('mads.openTreeLink', (item) => {
+      if (!item?.link_url) {
+        return;
+      }
+      return vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(item.link_url));
+    }),
+    vscode.commands.registerCommand('mads.revealTreePath', (item) => {
+      if (!item?.reveal_path) {
+        return;
+      }
+      return vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(item.reveal_path));
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refresh_all();
