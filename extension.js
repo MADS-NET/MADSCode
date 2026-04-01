@@ -698,6 +698,27 @@ function run_simple_command(command, args, success_message, on_success) {
   });
 }
 
+function launch_detached_command(command, args, error_label) {
+  const workspace_path = get_workspace_path();
+  if (!workspace_path) {
+    vscode.window.showErrorMessage('Open a workspace before running MADS commands.');
+    return;
+  }
+
+  const child = spawn(command, args, {
+    cwd: workspace_path,
+    env: process.env,
+    detached: true,
+    stdio: 'ignore'
+  });
+
+  child.on('error', (error) => {
+    vscode.window.showErrorMessage(`Failed to launch ${error_label}: ${error.message}`);
+  });
+
+  child.unref();
+}
+
 function run_director_generation(target_path, on_success) {
   const workspace_path = get_workspace_path();
   if (!workspace_path) {
@@ -895,13 +916,7 @@ function activate(context) {
       return vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(item.link_url));
     }),
     vscode.commands.registerCommand('mads.launchChat', () => {
-      const workspace_path = get_workspace_path();
-      const terminal = vscode.window.createTerminal({
-        name: 'MADS Chat',
-        cwd: workspace_path
-      });
-      terminal.show(true);
-      terminal.sendText('mads chat', true);
+      launch_detached_command('mads', ['chat'], 'mads chat');
     }),
     vscode.commands.registerCommand('mads.revealTreePath', (item) => {
       if (!item?.reveal_path) {
