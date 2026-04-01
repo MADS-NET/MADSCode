@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
