@@ -20,7 +20,9 @@ This extension helps in the development of MADS plugins. Look at the [Guides](ht
 
 ## Installing
 
-MADSCode is distributed via Open VSX, you can install it by downloading it from <https://open-vsx.org/extension/MADS-Net/madscode> and then `code --install-extension MADS-Net.madscode-<version>.vsix`
+MADSCode is on Visual Studio Code marketplace [here](https://marketplace.visualstudio.com/items?itemName=MADS-Net.madscode).
+
+MADSCode is also distributed via Open VSX, you can install it by downloading it from <https://open-vsx.org/extension/MADS-Net/madscode> and then `code --install-extension MADS-Net.madscode-<version>.vsix`
 
 ## Running locally
 
