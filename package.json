@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.0.7",
+  "version": "0.0.10",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
@@ -48,9 +48,11 @@
     "onCommand:mads.refreshPlugins",
     "onCommand:mads.startFile",
     "onCommand:mads.stopFile",
+    "onCommand:mads.startActiveIniFile",
     "onCommand:mads.generateIniFile",
     "onCommand:mads.generateDirectorFile",
-    "onCommand:mads.createPlugin"
+    "onCommand:mads.createPlugin",
+    "onCommand:mads.launchChat"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -110,6 +112,11 @@
         "icon": "$(stop-circle)"
       },
       {
+        "command": "mads.startActiveIniFile",
+        "title": "Start Active MADS File",
+        "icon": "$(play)"
+      },
+      {
         "command": "mads.generateIniFile",
         "title": "Generate INI File",
         "icon": "$(build)"
@@ -128,6 +135,11 @@
         "command": "mads.openTreeLink",
         "title": "Open Link",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "mads.launchChat",
+        "title": "Launch Chat",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "mads.revealTreePath",
@@ -185,9 +197,21 @@
           "group": "inline"
         },
         {
+          "command": "mads.launchChat",
+          "when": "view == mads.info && viewItem == chatCommand",
+          "group": "inline"
+        },
+        {
           "command": "mads.revealTreePath",
           "when": "view =~ /^mads\\./ && viewItem == openableFolder",
           "group": "inline"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mads.startActiveIniFile",
+          "when": "resourceExtname == .ini || resourceExtname == .toml",
+          "group": "navigation"
         }
       ]
     }

@@ -106,48 +106,36 @@ class ControlProvider {
       ];
     }
 
-    let entries;
     try {
-      entries = await fs.promises.readdir(workspace_path, { withFileTypes: true });
+      const files = await collect_control_files(workspace_path);
+
+      const system_ini_path = await get_system_ini_path();
+      if (system_ini_path) {
+        files.unshift({
+          file_path: system_ini_path,
+          display_name: 'System mads.ini'
+        });
+      }
+
+      if (files.length === 0) {
+        return [
+          new vscode.TreeItem('No .ini or .toml files found in the workspace.')
+        ];
+      }
+
+      const running_ini_path = this._process_manager.get_running_ini_path();
+
+      return files.map(({ file_path, display_name }) => new ControlItem(
+        file_path,
+        this._process_manager.is_running(file_path),
+        Boolean(running_ini_path && running_ini_path !== file_path && path.extname(file_path) === '.ini'),
+        display_name
+      ));
     } catch (error) {
       return [
         new vscode.TreeItem(`Failed to read ${workspace_path}: ${error.message}`)
       ];
     }
-
-    const files = entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name)
-      .filter((name) => name !== 'imgui.ini')
-      .filter((name) => name.endsWith('.ini') || name.endsWith('.toml'))
-      .sort((left, right) => left.localeCompare(right))
-      .map((name) => ({
-        file_path: path.join(workspace_path, name),
-        display_name: null
-      }));
-
-    const system_ini_path = await get_system_ini_path();
-    if (system_ini_path) {
-      files.unshift({
-        file_path: system_ini_path,
-        display_name: 'System mads.ini'
-      });
-    }
-
-    if (files.length === 0) {
-      return [
-        new vscode.TreeItem('No .ini or .toml files found in the workspace root.')
-      ];
-    }
-
-    const running_ini_path = this._process_manager.get_running_ini_path();
-
-    return files.map(({ file_path, display_name }) => new ControlItem(
-      file_path,
-      this._process_manager.is_running(file_path),
-      Boolean(running_ini_path && running_ini_path !== file_path && path.extname(file_path) === '.ini'),
-      display_name
-    ));
   }
 }
 
@@ -176,7 +164,8 @@ class MadsInfoProvider {
         new InfoItem('Version', version || 'Unavailable'),
         await create_prefix_info_item(prefix),
         create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
-        create_external_link_info_item('Install', 'https://git.new/mads')
+        create_external_link_info_item('Install', 'https://git.new/mads'),
+        await create_chat_info_item(prefix)
       ];
     } catch (error) {
       if (error.code === 'ENOENT') {
@@ -184,7 +173,8 @@ class MadsInfoProvider {
           new InfoItem('Version', 'MADS is not installed'),
           new InfoItem('Prefix', 'Install the MADS framework from https://git.new/mads'),
           create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
-          create_external_link_info_item('Install', 'https://git.new/mads')
+          create_external_link_info_item('Install', 'https://git.new/mads'),
+          create_chat_info_item_unavailable()
         ];
       }
 
@@ -311,9 +301,46 @@ class ProcessManager {
       ? ['broker', '-s', file_path, '-d']
       : ['director', file_path];
     const should_capture_output = extension_name === '.ini';
+    const cwd = workspace_path;
+
+    this.start_process(file_path, args, cwd, should_capture_output);
+  }
+
+  start_active_file(file_path) {
+    const extension_name = path.extname(file_path).toLowerCase();
+    const cwd = path.dirname(file_path);
+
+    if (extension_name === '.ini') {
+      const running_ini_path = this.get_running_ini_path();
+      if (running_ini_path && running_ini_path !== file_path) {
+        vscode.window.showInformationMessage(
+          `${path.basename(running_ini_path)} is already running. Stop it before starting another .ini file.`
+        );
+        return;
+      }
+
+      const args = ['broker', '-s', path.basename(file_path), '-d'];
+      this.start_process(file_path, args, cwd, true);
+      return;
+    }
+
+    if (extension_name === '.toml') {
+      const args = ['director', path.basename(file_path)];
+      this.start_process(file_path, args, cwd, false);
+      return;
+    }
+
+    vscode.window.showErrorMessage('Open an .ini or .toml file before starting MADS.');
+  }
+
+  start_process(file_path, args, cwd, should_capture_output) {
+    if (this._processes.has(file_path)) {
+      vscode.window.showInformationMessage(`${path.basename(file_path)} is already running.`);
+      return;
+    }
 
     const child = spawn('mads', args, {
-      cwd: workspace_path,
+      cwd,
       env: process.env,
       stdio: should_capture_output ? ['ignore', 'pipe', 'pipe'] : 'ignore'
     });
@@ -451,8 +478,73 @@ async function get_system_ini_path() {
   }
 }
 
+async function collect_control_files(workspace_path) {
+  const files = [];
+
+  async function walk(directory_path) {
+    const entries = await fs.promises.readdir(directory_path, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entry_path = path.join(directory_path, entry.name);
+      if (entry.isDirectory()) {
+        await walk(entry_path);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const extension_name = path.extname(entry.name).toLowerCase();
+      if (entry.name === 'imgui.ini' || (extension_name !== '.ini' && extension_name !== '.toml')) {
+        continue;
+      }
+
+      files.push({
+        file_path: entry_path,
+        display_name: path.relative(workspace_path, entry_path)
+      });
+    }
+  }
+
+  await walk(workspace_path);
+  files.sort((left, right) => left.display_name.localeCompare(right.display_name));
+  return files;
+}
+
 function create_external_link_info_item(label, url) {
   const item = new InfoItem(label, url, create_open_url_command(url, label), 'externalLink');
+  item.link_url = url;
+  return item;
+}
+
+async function create_chat_info_item(prefix) {
+  const fallback_url = 'https://github.com/mads-net/mads_chat';
+  if (!prefix) {
+    return create_chat_info_item_unavailable();
+  }
+
+  const executable_path = path.join(prefix, 'bin', 'mads-chat');
+  try {
+    await fs.promises.access(executable_path, fs.constants.X_OK);
+    const item = new InfoItem(
+      'Chat',
+      'mads chat',
+      {
+        command: 'mads.launchChat',
+        title: 'Launch Chat'
+      },
+      'chatCommand'
+    );
+    item.chat_command = 'mads chat';
+    return item;
+  } catch {
+    return create_chat_info_item_unavailable(fallback_url);
+  }
+}
+
+function create_chat_info_item_unavailable(url = 'https://github.com/mads-net/mads_chat') {
+  const item = new InfoItem('Chat', url, create_open_url_command(url, 'Open Chat'), 'externalLink');
   item.link_url = url;
   return item;
 }
@@ -653,10 +745,10 @@ function register_workspace_watchers(context, refresh) {
   }
 
   const ini_watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(workspace_path, '*.ini')
+    new vscode.RelativePattern(workspace_path, '**/*.ini')
   );
   const toml_watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(workspace_path, '*.toml')
+    new vscode.RelativePattern(workspace_path, '**/*.toml')
   );
 
   const subscriptions = [ini_watcher, toml_watcher];
@@ -709,6 +801,17 @@ function activate(context) {
         return;
       }
       process_manager.stop(item.file_path);
+    }),
+    vscode.commands.registerCommand('mads.startActiveIniFile', (uri) => {
+      const target_uri = uri instanceof vscode.Uri
+        ? uri
+        : vscode.window.activeTextEditor?.document?.uri;
+      if (!target_uri || target_uri.scheme !== 'file') {
+        vscode.window.showErrorMessage('Open an .ini or .toml file before starting MADS.');
+        return;
+      }
+
+      process_manager.start_active_file(target_uri.fsPath);
     }),
     vscode.commands.registerCommand('mads.generateIniFile', async () => {
       const workspace_path = get_workspace_path();
@@ -776,7 +879,7 @@ function activate(context) {
 
       run_simple_command(
         'mads',
-        ['plugin', '-type', plugin_type, '--dir', '.', plugin_name],
+        ['plugin', '--type', plugin_type, '--dir', '.', plugin_name],
         `Created plugin ${plugin_name}.`,
         () => {
           plugins_provider.refresh();
@@ -789,6 +892,15 @@ function activate(context) {
         return;
       }
       return vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(item.link_url));
+    }),
+    vscode.commands.registerCommand('mads.launchChat', () => {
+      const workspace_path = get_workspace_path();
+      const terminal = vscode.window.createTerminal({
+        name: 'MADS Chat',
+        cwd: workspace_path
+      });
+      terminal.show(true);
+      terminal.sendText('mads chat', true);
     }),
     vscode.commands.registerCommand('mads.revealTreePath', (item) => {
       if (!item?.reveal_path) {
