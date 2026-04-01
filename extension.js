@@ -524,7 +524,8 @@ async function create_chat_info_item(prefix) {
     return create_chat_info_item_unavailable();
   }
 
-  const executable_path = path.join(prefix, 'bin', 'mads-chat');
+  const executable_name = process.platform === 'win32' ? 'mads-chat.exe' : 'mads-chat';
+  const executable_path = path.join(prefix, 'bin', executable_name);
   try {
     await fs.promises.access(executable_path, fs.constants.X_OK);
     const item = new InfoItem(
