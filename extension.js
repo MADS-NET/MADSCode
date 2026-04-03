@@ -193,7 +193,8 @@ class ConfigurationsProvider {
   getChildren() {
     return [
       new ActionItem('Generate INI file', 'mads.generateIniFile', 'configurationGenerateIni'),
-      new ActionItem('Generate director file', 'mads.generateDirectorFile', 'configurationGenerateDirector')
+      new ActionItem('Generate director file', 'mads.generateDirectorFile', 'configurationGenerateDirector'),
+      new ActionItem('Generate FSM template file', 'mads.generateFsmTemplateFile', 'configurationGenerateFsmTemplate')
     ];
   }
 }
@@ -606,6 +607,7 @@ async function prompt_for_filename(options) {
   const file_name = await vscode.window.showInputBox({
     prompt: options.prompt,
     placeHolder: options.place_holder,
+    value: options.default_value,
     validateInput: (value) => {
       if (!value || !value.trim()) {
         return 'A filename is required.';
@@ -660,27 +662,56 @@ async function prompt_for_plugin_name() {
   });
 }
 
+async function prompt_for_text(options) {
+  const value = await vscode.window.showInputBox({
+    prompt: options.prompt,
+    placeHolder: options.place_holder,
+    value: options.default_value,
+    validateInput: options.validate_input
+  });
+
+  return value?.trim();
+}
+
 function open_file(file_path) {
   return vscode.commands.executeCommand('vscode.open', vscode.Uri.file(file_path));
 }
 
-function run_simple_command(command, args, success_message, on_success) {
-  const workspace_path = get_workspace_path();
-  if (!workspace_path) {
+function run_simple_command(command, args, success_message, on_success, options = {}) {
+  const command_cwd = options.cwd || get_workspace_path();
+  if (!command_cwd) {
     vscode.window.showErrorMessage('Open a workspace before running MADS commands.');
     return;
   }
 
   const child = spawn(command, args, {
-    cwd: workspace_path,
+    cwd: command_cwd,
     env: process.env,
-    stdio: ['ignore', 'ignore', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe']
   });
+
+  if (options.output_channel) {
+    options.output_channel.clear();
+    options.output_channel.show(true);
+    options.output_channel.appendLine(`> ${command} ${args.join(' ')}`);
+    options.output_channel.appendLine(`cwd: ${command_cwd}`);
+    options.output_channel.appendLine('');
+  }
 
   let stderr = '';
 
+  child.stdout.on('data', (chunk) => {
+    if (options.output_channel) {
+      options.output_channel.append(chunk.toString());
+    }
+  });
+
   child.stderr.on('data', (chunk) => {
-    stderr += chunk.toString();
+    const output = chunk.toString();
+    stderr += output;
+    if (options.output_channel) {
+      options.output_channel.append(output);
+    }
   });
 
   child.on('error', (error) => {
@@ -760,6 +791,17 @@ function run_director_generation(target_path, on_success) {
   });
 }
 
+async function write_template_file(template_path, target_path, on_success) {
+  try {
+    const contents = await fs.promises.readFile(template_path, 'utf8');
+    await fs.promises.writeFile(target_path, contents, 'utf8');
+    vscode.window.showInformationMessage(`Generated ${path.basename(target_path)}.`);
+    on_success?.();
+  } catch (error) {
+    vscode.window.showErrorMessage(`Failed to generate ${path.basename(target_path)}: ${error.message}`);
+  }
+}
+
 function register_workspace_watchers(context, refresh) {
   const workspace_path = get_workspace_path();
   if (!workspace_path) {
@@ -835,6 +877,82 @@ function activate(context) {
 
       process_manager.start_active_file(target_uri.fsPath);
     }),
+    vscode.commands.registerCommand('mads.generateActiveFsmCpp', async (uri) => {
+      const target_uri = uri instanceof vscode.Uri
+        ? uri
+        : vscode.window.activeTextEditor?.document?.uri;
+      if (!target_uri || target_uri.scheme !== 'file' || path.extname(target_uri.fsPath) !== '.dot') {
+        vscode.window.showErrorMessage('Open a .dot file before generating FSM code.');
+        return;
+      }
+
+      const workspace_folder = vscode.workspace.getWorkspaceFolder(target_uri);
+      if (!workspace_folder) {
+        vscode.window.showErrorMessage('Open the .dot file from a workspace before generating FSM code.');
+        return;
+      }
+
+      const workspace_path = workspace_folder.uri.fsPath;
+
+      const source_dir = await prompt_for_text({
+        prompt: 'Source directory',
+        place_holder: 'src',
+        default_value: 'src',
+        validate_input: (value) => {
+          if (!value || !value.trim()) {
+            return 'A source directory is required.';
+          }
+          if (path.isAbsolute(value.trim())) {
+            return 'Use a path relative to the current project root.';
+          }
+          return null;
+        }
+      });
+      if (!source_dir) {
+        return;
+      }
+
+      const class_name = await prompt_for_text({
+        prompt: 'Class name',
+        place_holder: 'fsm_agent',
+        default_value: 'fsm_agent',
+        validate_input: (value) => {
+          if (!value || !value.trim()) {
+            return 'A class name is required.';
+          }
+          if (/[\\/]/.test(value.trim())) {
+            return 'Use only the class name, without path separators.';
+          }
+          if (/\s/.test(value.trim())) {
+            return 'Use a class name without whitespace.';
+          }
+          return null;
+        }
+      });
+      if (!class_name) {
+        return;
+      }
+
+      const output_directory = path.join(workspace_path, source_dir);
+      const output_path = path.join(output_directory, class_name);
+      try {
+        await fs.promises.mkdir(output_directory, { recursive: true });
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to create ${output_directory}: ${error.message}`);
+        return;
+      }
+
+      run_simple_command(
+        'mads',
+        ['fsm', '--cpp', '-o', output_path, target_uri.fsPath],
+        `Generated FSM C++ sources in ${output_path}.`,
+        undefined,
+        {
+          cwd: workspace_path,
+          output_channel
+        }
+      );
+    }),
     vscode.commands.registerCommand('mads.generateIniFile', async () => {
       const workspace_path = get_workspace_path();
       if (!workspace_path) {
@@ -845,6 +963,7 @@ function activate(context) {
       const file_name = await prompt_for_filename({
         prompt: 'INI filename',
         place_holder: 'config.ini',
+        default_value: 'mads.ini',
         extension: '.ini'
       });
       if (!file_name) {
@@ -871,6 +990,7 @@ function activate(context) {
       const file_name = await prompt_for_filename({
         prompt: 'Director TOML filename',
         place_holder: 'director.toml',
+        default_value: 'director.toml',
         extension: '.toml'
       });
       if (!file_name) {
@@ -880,6 +1000,30 @@ function activate(context) {
       run_director_generation(path.join(workspace_path, file_name), () => {
         refresh_all();
         void open_file(path.join(workspace_path, file_name));
+      });
+    }),
+    vscode.commands.registerCommand('mads.generateFsmTemplateFile', async () => {
+      const workspace_path = get_workspace_path();
+      if (!workspace_path) {
+        vscode.window.showErrorMessage('Open a workspace before generating configuration files.');
+        return;
+      }
+
+      const file_name = await prompt_for_filename({
+        prompt: 'FSM template filename',
+        place_holder: 'fsm.dot',
+        default_value: 'fsm.dot',
+        extension: '.dot'
+      });
+      if (!file_name) {
+        return;
+      }
+
+      const template_path = path.join(context.extensionPath, 'media', 'svm.dot');
+      const target_path = path.join(workspace_path, file_name);
+
+      await write_template_file(template_path, target_path, () => {
+        void open_file(target_path);
       });
     }),
     vscode.commands.registerCommand('mads.createPlugin', async () => {

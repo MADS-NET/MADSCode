@@ -15,7 +15,7 @@ This extension helps in the development of MADS plugins. Look at the [Guides](ht
 - Lists `.ini` and `.toml` files from the workspace root
 - Opens files in the editor when selected
 - Starts and stops `mads broker` / `mads director`
-- Generates `.ini` and `.toml` configuration files
+- Generates `.ini`, `.toml`, and FSM `.dot` template files
 - Lists `mads --plugins` output and creates new plugins
 
 ## Installing

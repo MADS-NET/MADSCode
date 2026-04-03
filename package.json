@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
@@ -49,8 +49,10 @@
     "onCommand:mads.startFile",
     "onCommand:mads.stopFile",
     "onCommand:mads.startActiveIniFile",
+    "onCommand:mads.generateActiveFsmCpp",
     "onCommand:mads.generateIniFile",
     "onCommand:mads.generateDirectorFile",
+    "onCommand:mads.generateFsmTemplateFile",
     "onCommand:mads.createPlugin",
     "onCommand:mads.launchChat"
   ],
@@ -117,6 +119,11 @@
         "icon": "$(play)"
       },
       {
+        "command": "mads.generateActiveFsmCpp",
+        "title": "Generate FSM C++ From Active DOT File",
+        "icon": "$(play)"
+      },
+      {
         "command": "mads.generateIniFile",
         "title": "Generate INI File",
         "icon": "$(build)"
@@ -124,6 +131,11 @@
       {
         "command": "mads.generateDirectorFile",
         "title": "Generate Director File",
+        "icon": "$(build)"
+      },
+      {
+        "command": "mads.generateFsmTemplateFile",
+        "title": "Generate FSM Template File",
         "icon": "$(build)"
       },
       {
@@ -187,6 +199,11 @@
           "group": "inline"
         },
         {
+          "command": "mads.generateFsmTemplateFile",
+          "when": "view == mads.configurations && viewItem == configurationGenerateFsmTemplate",
+          "group": "inline"
+        },
+        {
           "command": "mads.createPlugin",
           "when": "view == mads.plugins && viewItem == pluginCreate",
           "group": "inline"
@@ -211,6 +228,11 @@
         {
           "command": "mads.startActiveIniFile",
           "when": "resourceExtname == .ini || resourceExtname == .toml",
+          "group": "navigation"
+        },
+        {
+          "command": "mads.generateActiveFsmCpp",
+          "when": "resourceExtname == .dot",
           "group": "navigation"
         }
       ]
