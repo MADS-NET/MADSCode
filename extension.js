@@ -57,10 +57,17 @@ class InfoItem extends vscode.TreeItem {
 }
 
 class PluginItem extends vscode.TreeItem {
-  constructor(label, description) {
-    super(`• ${label}`, vscode.TreeItemCollapsibleState.None);
+  constructor(label, description, options = {}) {
+    super(
+      options.inspectable ? label : `• ${label}`,
+      options.inspectable ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+    );
+    this.plugin_path = options.plugin_path;
     this.description = description || '';
-    this.tooltip = description ? `${label}: ${description}` : label;
+    this.tooltip = options.inspectable
+      ? [options.plugin_path, description].filter(Boolean).join('\n')
+      : (description ? `${label}: ${description}` : label);
+    this.contextValue = options.inspectable ? 'plugin' : undefined;
   }
 }
 
@@ -80,6 +87,17 @@ class PluginsDirectoryItem extends vscode.TreeItem {
     if (command) {
       this.command = command;
     }
+  }
+}
+
+class JsonTreeItem extends vscode.TreeItem {
+  constructor(label, value, options = {}) {
+    super(label, get_json_tree_collapsible_state(value));
+    this.value = value;
+    this.options = options;
+    this.description = get_json_tree_description(value);
+    this.tooltip = create_json_tree_tooltip(label, value);
+    this.contextValue = 'jsonTreeItem';
   }
 }
 
@@ -203,9 +221,11 @@ class PluginsProvider {
   constructor() {
     this._on_did_change_tree_data = new vscode.EventEmitter();
     this.onDidChangeTreeData = this._on_did_change_tree_data.event;
+    this._plugin_inspection_cache = new Map();
   }
 
   refresh() {
+    this._plugin_inspection_cache.clear();
     this._on_did_change_tree_data.fire();
   }
 
@@ -216,6 +236,14 @@ class PluginsProvider {
   async getChildren(element) {
     if (element instanceof PluginsGroupItem) {
       return element.plugins;
+    }
+
+    if (element instanceof PluginItem && element.plugin_path) {
+      return this.get_plugin_children(element);
+    }
+
+    if (element instanceof JsonTreeItem) {
+      return get_json_tree_children(element.value, element.options);
     }
 
     const workspace_path = get_workspace_path();
@@ -234,6 +262,7 @@ class PluginsProvider {
         .map((line) => line.trimEnd());
 
       const directory_line = lines[0]?.trim();
+      const plugins_directory = parse_plugins_directory_path(directory_line);
       if (directory_line) {
         items.push(await create_plugins_directory_item(directory_line));
       }
@@ -248,11 +277,41 @@ class PluginsProvider {
         return items;
       }
 
-      items.push(new PluginsGroupItem(plugins.map((plugin) => parse_plugin_line(plugin))));
+      const inspectable_plugins = await should_use_inspectable_plugins();
+      items.push(new PluginsGroupItem(
+        plugins.map((plugin) => create_plugin_item(plugin, plugins_directory, inspectable_plugins))
+      ));
       return items;
     } catch (error) {
       items.push(new vscode.TreeItem(`Failed to query plugins: ${error.message}`));
       return items;
+    }
+  }
+
+  async get_plugin_children(element) {
+    try {
+      const inspection = await this.inspect_plugin(element.plugin_path);
+      const flatten_single_driver = await should_flatten_single_driver();
+      return get_json_tree_children(inspection, { flatten_single_driver });
+    } catch (error) {
+      return [new vscode.TreeItem(`Failed to inspect plugin: ${error.message}`)];
+    }
+  }
+
+  async inspect_plugin(plugin_path) {
+    if (this._plugin_inspection_cache.has(plugin_path)) {
+      return this._plugin_inspection_cache.get(plugin_path);
+    }
+
+    const inspection_promise = capture_mads_output(['inspect_plugin', '--json', plugin_path])
+      .then((output) => JSON.parse(output));
+    this._plugin_inspection_cache.set(plugin_path, inspection_promise);
+
+    try {
+      return await inspection_promise;
+    } catch (error) {
+      this._plugin_inspection_cache.delete(plugin_path);
+      throw error;
     }
   }
 }
@@ -572,6 +631,11 @@ async function create_plugins_directory_item(line) {
   }
 }
 
+function parse_plugins_directory_path(line) {
+  const match = line?.match(/^Plugins directory:\s*(.+)$/i);
+  return match ? match[1].trim() : null;
+}
+
 function create_open_url_command(url, title) {
   return {
     command: 'vscode.open',
@@ -588,19 +652,153 @@ function create_reveal_path_command(file_path, title) {
   };
 }
 
-function parse_plugin_line(line) {
+function create_plugin_item(line, plugins_directory, inspectable) {
   const separators = [' - ', ': ', '\t'];
   for (const separator of separators) {
     const index = line.indexOf(separator);
     if (index > 0) {
-      return new PluginItem(
-        line.slice(0, index).trim(),
-        line.slice(index + separator.length).trim()
-      );
+      const label = line.slice(0, index).trim();
+      const description = line.slice(index + separator.length).trim();
+      return new PluginItem(label, description, {
+        inspectable,
+        plugin_path: inspectable ? resolve_plugin_path(label, plugins_directory) : undefined
+      });
     }
   }
 
-  return new PluginItem(line, '');
+  return new PluginItem(line, '', {
+    inspectable,
+    plugin_path: inspectable ? resolve_plugin_path(line, plugins_directory) : undefined
+  });
+}
+
+function resolve_plugin_path(plugin_reference, plugins_directory) {
+  if (!plugin_reference) {
+    return plugin_reference;
+  }
+
+  if (!plugins_directory) {
+    return plugin_reference;
+  }
+
+  return path.resolve(plugins_directory, plugin_reference);
+}
+
+let use_inspectable_plugins_promise;
+let flatten_single_driver_promise;
+
+function should_use_inspectable_plugins() {
+  if (!use_inspectable_plugins_promise) {
+    use_inspectable_plugins_promise = capture_mads_output(['-v'], { require_workspace: false })
+      .then((version) => is_version_greater_than(version, 'v2.0.3'))
+      .catch(() => false);
+  }
+
+  return use_inspectable_plugins_promise;
+}
+
+function should_flatten_single_driver() {
+  if (!flatten_single_driver_promise) {
+    flatten_single_driver_promise = should_use_inspectable_plugins();
+  }
+
+  return flatten_single_driver_promise;
+}
+
+function is_version_greater_than(version_text, minimum_version) {
+  const current = parse_semantic_version(version_text);
+  const minimum = parse_semantic_version(minimum_version);
+  if (!current || !minimum) {
+    return false;
+  }
+
+  const max_length = Math.max(current.length, minimum.length);
+  for (let index = 0; index < max_length; index += 1) {
+    const current_part = current[index] ?? 0;
+    const minimum_part = minimum[index] ?? 0;
+    if (current_part > minimum_part) {
+      return true;
+    }
+    if (current_part < minimum_part) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+function parse_semantic_version(version_text) {
+  const match = version_text?.match(/v?(\d+(?:\.\d+)+)/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[1].split('.').map((part) => Number.parseInt(part, 10));
+}
+
+function get_json_tree_collapsible_state(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0
+      ? vscode.TreeItemCollapsibleState.Collapsed
+      : vscode.TreeItemCollapsibleState.None;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.keys(value).length > 0
+      ? vscode.TreeItemCollapsibleState.Collapsed
+      : vscode.TreeItemCollapsibleState.None;
+  }
+
+  return vscode.TreeItemCollapsibleState.None;
+}
+
+function get_json_tree_description(value) {
+  if (Array.isArray(value)) {
+    return `[${value.length}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).length}}`;
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (typeof value === 'undefined') {
+    return 'undefined';
+  }
+
+  return String(value);
+}
+
+function create_json_tree_tooltip(label, value) {
+  const rendered_value = value && typeof value === 'object'
+    ? JSON.stringify(value, null, 2)
+    : get_json_tree_description(value);
+  return `${label}: ${rendered_value}`;
+}
+
+function get_json_tree_children(value, options = {}) {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => new JsonTreeItem(`[${index}]`, entry, options));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value).map(([key, entry]) => {
+      if (options.flatten_single_driver && key === 'drivers' && Array.isArray(entry) && entry.length === 1) {
+        return new JsonTreeItem('driver', entry[0], options);
+      }
+
+      return new JsonTreeItem(key, entry, options);
+    });
+  }
+
+  return [];
 }
 
 async function prompt_for_filename(options) {
