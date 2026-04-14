@@ -956,7 +956,7 @@ function run_director_generation(target_path, on_success) {
   }
 
   const output = fs.createWriteStream(target_path);
-  const child = spawn('mads', ['director'], {
+  const child = spawn('mads', ['director', '--example'], {
     cwd: workspace_path,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe']

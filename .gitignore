@@ -3,3 +3,5 @@ node_modules/
 imgui.ini
 package-lock.json
 .vscode
+.dot
+TASKS.md
