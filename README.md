@@ -1,5 +1,7 @@
 # MADSCode
 
+[![MADSCode](https://vsmarketplacebadges.dev/version-short/MADS-Net.madscode.svg)](https://marketplace.visualstudio.com/items?itemName=MADS-Net.madscode)
+
 Visual Studio Code extension scaffold for the MADS framework.
 
 ## What is MADS
@@ -12,7 +14,7 @@ This extension helps in the development of MADS plugins. Look at the [Guides](ht
 
 - Activity bar entry with `MADS Info`, `Control`, `Configurations`, and `Plugins` side views
 - Shows `mads -v` and `mads -p`
-- Lists `.ini` and `.toml` files from the workspace root
+- Lists `.ini` files with `[agents]` and `.toml` files with `[director]` from the workspace
 - Opens files in the editor when selected
 - Starts and stops `mads broker` / `mads director`
 - Generates `.ini`, `.toml`, and FSM `.dot` template files

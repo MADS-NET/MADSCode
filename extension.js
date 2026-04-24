@@ -532,7 +532,7 @@ async function get_system_ini_path() {
 
     const system_ini_path = path.join(prefix, 'etc', 'mads.ini');
     await fs.promises.access(system_ini_path, fs.constants.F_OK);
-    return system_ini_path;
+    return await has_control_file_section(system_ini_path, '.ini') ? system_ini_path : null;
   } catch {
     return null;
   }
@@ -560,6 +560,10 @@ async function collect_control_files(workspace_path) {
         continue;
       }
 
+      if (!await has_control_file_section(entry_path, extension_name)) {
+        continue;
+      }
+
       files.push({
         file_path: entry_path,
         display_name: path.relative(workspace_path, entry_path)
@@ -570,6 +574,31 @@ async function collect_control_files(workspace_path) {
   await walk(workspace_path);
   files.sort((left, right) => left.display_name.localeCompare(right.display_name));
   return files;
+}
+
+async function has_control_file_section(file_path, extension_name) {
+  const section_name = extension_name === '.ini'
+    ? 'agents'
+    : (extension_name === '.toml' ? 'director' : null);
+  if (!section_name) {
+    return false;
+  }
+
+  try {
+    const file_contents = await fs.promises.readFile(file_path, 'utf8');
+    return has_section(file_contents, section_name, extension_name);
+  } catch {
+    return false;
+  }
+}
+
+function has_section(file_contents, section_name, extension_name) {
+  const comment_marker = extension_name === '.ini' ? '[#;]' : '#';
+  const section_pattern = new RegExp(
+    `^\\s*\\[\\s*${section_name}\\s*\\]\\s*(?:${comment_marker}.*)?$`,
+    'm'
+  );
+  return section_pattern.test(file_contents);
 }
 
 function create_external_link_info_item(label, url) {
