@@ -56,6 +56,13 @@ class InfoItem extends vscode.TreeItem {
   }
 }
 
+class RoomsItem extends vscode.TreeItem {
+  constructor() {
+    super('Rooms', vscode.TreeItemCollapsibleState.None);
+    this.contextValue = 'roomsGroup';
+  }
+}
+
 class PluginItem extends vscode.TreeItem {
   constructor(label, description, options = {}) {
     super(
@@ -178,13 +185,17 @@ class MadsInfoProvider {
         capture_mads_output(['-p'], { require_workspace: false })
       ]);
 
-      return [
+      const items = [
         new InfoItem('Version', version || 'Unavailable'),
         await create_prefix_info_item(prefix),
         create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
         create_external_link_info_item('Install', 'https://git.new/mads'),
         await create_chat_info_item(prefix)
       ];
+      if (is_version_at_least(version, 'v2.1.0')) {
+        items.push(new RoomsItem());
+      }
+      return items;
     } catch (error) {
       if (error.code === 'ENOENT') {
         return [
@@ -735,10 +746,18 @@ function should_flatten_single_driver() {
 }
 
 function is_version_greater_than(version_text, minimum_version) {
+  return compare_semantic_versions(version_text, minimum_version) > 0;
+}
+
+function is_version_at_least(version_text, minimum_version) {
+  return compare_semantic_versions(version_text, minimum_version) >= 0;
+}
+
+function compare_semantic_versions(version_text, minimum_version) {
   const current = parse_semantic_version(version_text);
   const minimum = parse_semantic_version(minimum_version);
   if (!current || !minimum) {
-    return false;
+    return -1;
   }
 
   const max_length = Math.max(current.length, minimum.length);
@@ -746,14 +765,14 @@ function is_version_greater_than(version_text, minimum_version) {
     const current_part = current[index] ?? 0;
     const minimum_part = minimum[index] ?? 0;
     if (current_part > minimum_part) {
-      return true;
+      return 1;
     }
     if (current_part < minimum_part) {
-      return false;
+      return -1;
     }
   }
 
-  return false;
+  return 0;
 }
 
 function parse_semantic_version(version_text) {
@@ -906,22 +925,26 @@ function open_file(file_path) {
 
 function run_simple_command(command, args, success_message, on_success, options = {}) {
   const command_cwd = options.cwd || get_workspace_path();
-  if (!command_cwd) {
+  if (options.require_workspace !== false && !command_cwd) {
     vscode.window.showErrorMessage('Open a workspace before running MADS commands.');
     return;
   }
 
-  const child = spawn(command, args, {
-    cwd: command_cwd,
+  const spawn_options = {
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe']
-  });
+  };
+  if (command_cwd) {
+    spawn_options.cwd = command_cwd;
+  }
+
+  const child = spawn(command, args, spawn_options);
 
   if (options.output_channel) {
     options.output_channel.clear();
-    options.output_channel.show(true);
+    options.output_channel.show(options.preserve_focus ?? true);
     options.output_channel.appendLine(`> ${command} ${args.join(' ')}`);
-    options.output_channel.appendLine(`cwd: ${command_cwd}`);
+    options.output_channel.appendLine(`cwd: ${command_cwd || process.cwd()}`);
     options.output_channel.appendLine('');
   }
 
@@ -1074,6 +1097,19 @@ function activate(context) {
     vscode.window.registerTreeDataProvider('mads.plugins', plugins_provider),
     vscode.commands.registerCommand('mads.refreshInfo', () => {
       info_provider.refresh();
+    }),
+    vscode.commands.registerCommand('mads.refreshRooms', () => {
+      run_simple_command(
+        'mads',
+        ['--rooms'],
+        'Updated MADS rooms.',
+        undefined,
+        {
+          require_workspace: false,
+          output_channel,
+          preserve_focus: false
+        }
+      );
     }),
     vscode.commands.registerCommand('mads.refreshFiles', () => {
       control_provider.refresh();

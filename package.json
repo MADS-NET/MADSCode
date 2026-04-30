@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
@@ -45,6 +45,7 @@
     "onView:mads.plugins",
     "onCommand:mads.refreshFiles",
     "onCommand:mads.refreshInfo",
+    "onCommand:mads.refreshRooms",
     "onCommand:mads.refreshPlugins",
     "onCommand:mads.startFile",
     "onCommand:mads.stopFile",
@@ -96,6 +97,11 @@
       {
         "command": "mads.refreshInfo",
         "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mads.refreshRooms",
+        "title": "Refresh Rooms",
         "icon": "$(refresh)"
       },
       {
@@ -216,6 +222,11 @@
         {
           "command": "mads.launchChat",
           "when": "view == mads.info && viewItem == chatCommand",
+          "group": "inline"
+        },
+        {
+          "command": "mads.refreshRooms",
+          "when": "view == mads.info && viewItem == roomsGroup",
           "group": "inline"
         },
         {
