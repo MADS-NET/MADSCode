@@ -20,6 +20,20 @@ This extension helps in the development of MADS plugins. Look at the [Guides](ht
 - Generates `.ini`, `.toml`, and FSM `.dot` template files
 - Lists `mads --plugins` output and creates new plugins
 
+## Settings
+
+MADSCode contributes the following settings:
+
+- [`madscode.roomsTimeoutMs`](vscode://settings/madscode.roomsTimeoutMs): timeout in milliseconds used by the `MADS Info` > `Rooms` discovery command. The default is `5000`.
+
+You can also configure it in `settings.json`:
+
+```json
+{
+  "madscode.roomsTimeoutMs": 5000
+}
+```
+
 ## Installing
 
 MADSCode is on Visual Studio Code marketplace [here](https://marketplace.visualstudio.com/items?itemName=MADS-Net.madscode).

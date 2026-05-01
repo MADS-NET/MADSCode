@@ -58,7 +58,7 @@ class InfoItem extends vscode.TreeItem {
 
 class RoomsItem extends vscode.TreeItem {
   constructor() {
-    super('Rooms', vscode.TreeItemCollapsibleState.None);
+    super('Rooms', vscode.TreeItemCollapsibleState.Collapsed);
     this.contextValue = 'roomsGroup';
   }
 }
@@ -168,9 +168,16 @@ class MadsInfoProvider {
   constructor() {
     this._on_did_change_tree_data = new vscode.EventEmitter();
     this.onDidChangeTreeData = this._on_did_change_tree_data.event;
+    this._rooms_discovery_cache = null;
   }
 
   refresh() {
+    this._rooms_discovery_cache = null;
+    this._on_did_change_tree_data.fire();
+  }
+
+  refresh_rooms() {
+    this._rooms_discovery_cache = null;
     this._on_did_change_tree_data.fire();
   }
 
@@ -178,7 +185,15 @@ class MadsInfoProvider {
     return element;
   }
 
-  async getChildren() {
+  async getChildren(element) {
+    if (element instanceof RoomsItem) {
+      return this.get_rooms_children();
+    }
+
+    if (element instanceof JsonTreeItem) {
+      return get_json_tree_children(element.value, element.options);
+    }
+
     try {
       const [version, prefix] = await Promise.all([
         capture_mads_output(['-v'], { require_workspace: false }),
@@ -210,6 +225,37 @@ class MadsInfoProvider {
       return [
         new vscode.TreeItem(`Failed to query MADS: ${error.message}`)
       ];
+    }
+  }
+
+  async get_rooms_children() {
+    try {
+      const rooms = await this.discover_rooms();
+      const children = get_json_tree_children(rooms);
+      return children.length > 0
+        ? children
+        : [new vscode.TreeItem('No rooms reported by mads --rooms.')];
+    } catch (error) {
+      return [
+        new vscode.TreeItem(`Failed to query rooms: ${error.message}`)
+      ];
+    }
+  }
+
+  async discover_rooms() {
+    if (!this._rooms_discovery_cache) {
+      const timeout_ms = get_rooms_timeout_ms();
+      this._rooms_discovery_cache = capture_mads_output(
+        [`--rooms=${timeout_ms}`, '--json'],
+        { require_workspace: false }
+      ).then((output) => parse_mads_json_output(output, 'rooms'));
+    }
+
+    try {
+      return await this._rooms_discovery_cache;
+    } catch (error) {
+      this._rooms_discovery_cache = null;
+      throw error;
     }
   }
 }
@@ -517,6 +563,32 @@ function capture_mads_output(args, options = {}) {
       reject(new Error(stderr.trim() || `mads exited with code ${code ?? 0}.`));
     });
   });
+}
+
+function get_rooms_timeout_ms() {
+  const configured_value = vscode.workspace
+    .getConfiguration('madscode')
+    .get('roomsTimeoutMs', 5000);
+  const timeout_ms = Number(configured_value);
+  return Number.isFinite(timeout_ms) && timeout_ms >= 0
+    ? Math.trunc(timeout_ms)
+    : 5000;
+}
+
+function parse_mads_json_output(output, label) {
+  if (!output) {
+    throw new Error(`mads returned no ${label} JSON output.`);
+  }
+
+  if (label === 'rooms' && /^No rooms found\.?$/i.test(output.trim())) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(output);
+  } catch (error) {
+    throw new Error(`mads returned invalid ${label} JSON: ${error.message}`);
+  }
 }
 
 async function create_prefix_info_item(prefix) {
@@ -1099,17 +1171,7 @@ function activate(context) {
       info_provider.refresh();
     }),
     vscode.commands.registerCommand('mads.refreshRooms', () => {
-      run_simple_command(
-        'mads',
-        ['--rooms'],
-        'Updated MADS rooms.',
-        undefined,
-        {
-          require_workspace: false,
-          output_channel,
-          preserve_focus: false
-        }
-      );
+      info_provider.refresh_rooms();
     }),
     vscode.commands.registerCommand('mads.refreshFiles', () => {
       control_provider.refresh();
