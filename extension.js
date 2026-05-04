@@ -205,6 +205,7 @@ class MadsInfoProvider {
         await create_prefix_info_item(prefix),
         create_external_link_info_item('Guides', 'https://mads-net.github.io/guides'),
         create_external_link_info_item('Install', 'https://git.new/mads'),
+        create_external_link_info_item('API', 'https://pbosetti.github.io/MADS'),
         await create_chat_info_item(prefix)
       ];
       if (is_version_at_least(version, 'v2.1.0')) {
