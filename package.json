@@ -6,7 +6,7 @@
     "url": "https://github.com/MADS-NET/MADSCode.git"
   },
   "description": "Visual Studio Code support for the MADS framework.",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "author": {
     "name": "Paolo Bosetti",
     "url": "https://mads-net.github.io"
@@ -43,6 +43,7 @@
     "onView:mads.control",
     "onView:mads.configurations",
     "onView:mads.plugins",
+    "onView:mads.packages",
     "onCommand:mads.refreshFiles",
     "onCommand:mads.refreshInfo",
     "onCommand:mads.refreshRooms",
@@ -55,7 +56,11 @@
     "onCommand:mads.generateDirectorFile",
     "onCommand:mads.generateFsmTemplateFile",
     "onCommand:mads.createPlugin",
-    "onCommand:mads.launchChat"
+    "onCommand:mads.launchChat",
+    "onView:mads.packages",
+    "onCommand:mads.refreshPackages",
+    "onCommand:mads.packageInfo",
+    "onCommand:mads.packageInstall"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -85,6 +90,11 @@
         {
           "id": "mads.plugins",
           "name": "Plugins"
+        },
+        {
+          "id": "mads.packages",
+          "name": "Packages",
+          "when": "mads.packagesSupported"
         }
       ]
     },
@@ -174,6 +184,21 @@
         "command": "mads.revealTreePath",
         "title": "Open Folder",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "mads.refreshPackages",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mads.packageInfo",
+        "title": "Info",
+        "icon": "$(info)"
+      },
+      {
+        "command": "mads.packageInstall",
+        "title": "Install",
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
@@ -191,6 +216,11 @@
         {
           "command": "mads.refreshPlugins",
           "when": "view == mads.plugins",
+          "group": "navigation"
+        },
+        {
+          "command": "mads.refreshPackages",
+          "when": "view == mads.packages",
           "group": "navigation"
         }
       ],
@@ -243,6 +273,16 @@
         {
           "command": "mads.revealTreePath",
           "when": "view =~ /^mads\\./ && viewItem == openableFolder",
+          "group": "inline"
+        },
+        {
+          "command": "mads.packageInfo",
+          "when": "view == mads.packages && viewItem == packageInfo",
+          "group": "inline"
+        },
+        {
+          "command": "mads.packageInstall",
+          "when": "view == mads.packages && viewItem == packageInstall",
           "group": "inline"
         }
       ],

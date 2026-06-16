@@ -97,6 +97,30 @@ class PluginsDirectoryItem extends vscode.TreeItem {
   }
 }
 
+class PackageItem extends vscode.TreeItem {
+  constructor(pkg) {
+    super(pkg.name, vscode.TreeItemCollapsibleState.Collapsed);
+    this.package_name = pkg.name;
+    this.package_data = pkg;
+    this.description = pkg.release?.tag || '';
+    this.tooltip = pkg.uri || pkg.name;
+    this.contextValue = 'package';
+  }
+}
+
+class PackageActionItem extends vscode.TreeItem {
+  constructor(label, command_name, package_name, context_value) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.package_name = package_name;
+    this.contextValue = context_value;
+    this.command = {
+      command: command_name,
+      title: label,
+      arguments: [{ package_name }]
+    };
+  }
+}
+
 class JsonTreeItem extends vscode.TreeItem {
   constructor(label, value, options = {}) {
     super(label, get_json_tree_collapsible_state(value));
@@ -369,6 +393,67 @@ class PluginsProvider {
       return await inspection_promise;
     } catch (error) {
       this._plugin_inspection_cache.delete(plugin_path);
+      throw error;
+    }
+  }
+}
+
+class PackagesProvider {
+  constructor() {
+    this._on_did_change_tree_data = new vscode.EventEmitter();
+    this.onDidChangeTreeData = this._on_did_change_tree_data.event;
+    this._packages_cache = null;
+  }
+
+  refresh() {
+    this._packages_cache = null;
+    this._on_did_change_tree_data.fire();
+  }
+
+  getTreeItem(element) {
+    return element;
+  }
+
+  async getChildren(element) {
+    if (element instanceof PackageItem) {
+      return this.get_package_children(element);
+    }
+
+    try {
+      const packages = await this.fetch_packages();
+      if (!packages || packages.length === 0) {
+        return [new vscode.TreeItem('No packages available.')];
+      }
+      return packages.map((pkg) => new PackageItem(pkg));
+    } catch (error) {
+      return [new vscode.TreeItem(`Failed to query packages: ${error.message}`)];
+    }
+  }
+
+  get_package_children(item) {
+    const pkg = item.package_data;
+    const children = [new InfoItem('type', pkg.type)];
+    if (pkg.uri) {
+      children.push(create_external_link_info_item('uri', pkg.uri));
+    }
+    children.push(new PackageActionItem('Info', 'mads.packageInfo', item.package_name, 'packageInfo'));
+    children.push(new PackageActionItem('Install', 'mads.packageInstall', item.package_name, 'packageInstall'));
+    return children;
+  }
+
+  async fetch_packages() {
+    if (!this._packages_cache) {
+      this._packages_cache = capture_mads_output(['package', '--list', '--json'], { require_workspace: false })
+        .then((output) => {
+          const data = JSON.parse(output);
+          return data.packages || [];
+        });
+    }
+
+    try {
+      return await this._packages_cache;
+    } catch (error) {
+      this._packages_cache = null;
       throw error;
     }
   }
@@ -818,6 +903,17 @@ function should_flatten_single_driver() {
   return flatten_single_driver_promise;
 }
 
+let packages_supported_promise;
+
+function should_show_packages() {
+  if (!packages_supported_promise) {
+    packages_supported_promise = capture_mads_output(['-v'], { require_workspace: false })
+      .then((version) => is_version_at_least(version, 'v2.2.0') || /dirty/i.test(version))
+      .catch(() => false);
+  }
+  return packages_supported_promise;
+}
+
 function is_version_greater_than(version_text, minimum_version) {
   return compare_semantic_versions(version_text, minimum_version) > 0;
 }
@@ -1154,12 +1250,18 @@ function activate(context) {
   const control_provider = new ControlProvider(process_manager);
   const configurations_provider = new ConfigurationsProvider();
   const plugins_provider = new PluginsProvider();
+  const packages_provider = new PackagesProvider();
 
   function refresh_all() {
     info_provider.refresh();
     control_provider.refresh();
     plugins_provider.refresh();
+    packages_provider.refresh();
   }
+
+  should_show_packages().then((supported) => {
+    vscode.commands.executeCommand('setContext', 'mads.packagesSupported', supported);
+  });
 
   context.subscriptions.push(
     output_channel,
@@ -1168,6 +1270,7 @@ function activate(context) {
     vscode.window.registerTreeDataProvider('mads.control', control_provider),
     vscode.window.registerTreeDataProvider('mads.configurations', configurations_provider),
     vscode.window.registerTreeDataProvider('mads.plugins', plugins_provider),
+    vscode.window.registerTreeDataProvider('mads.packages', packages_provider),
     vscode.commands.registerCommand('mads.refreshInfo', () => {
       info_provider.refresh();
     }),
@@ -1393,6 +1496,31 @@ function activate(context) {
         return;
       }
       return vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(item.reveal_path));
+    }),
+    vscode.commands.registerCommand('mads.refreshPackages', () => {
+      packages_provider.refresh();
+    }),
+    vscode.commands.registerCommand('mads.packageInfo', (item) => {
+      const package_name = item?.package_name;
+      if (!package_name) {
+        return;
+      }
+      run_simple_command(
+        'mads',
+        ['package', '--info', package_name],
+        `Fetched info for ${package_name}.`,
+        undefined,
+        { output_channel, require_workspace: false }
+      );
+    }),
+    vscode.commands.registerCommand('mads.packageInstall', (item) => {
+      const package_name = item?.package_name;
+      if (!package_name) {
+        return;
+      }
+      const terminal = vscode.window.createTerminal({ name: `MADS: install ${package_name}` });
+      terminal.show();
+      terminal.sendText(`mads package --install ${package_name}`);
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refresh_all();

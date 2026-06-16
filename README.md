@@ -19,6 +19,7 @@ This extension helps in the development of MADS plugins. Look at the [Guides](ht
 - Starts and stops `mads broker` / `mads director`
 - Generates `.ini`, `.toml`, and FSM `.dot` template files
 - Lists `mads --plugins` output and creates new plugins
+- Lists available MADS packages and allows direct install of binaries (plugins and agents)
 
 ## Settings
 
